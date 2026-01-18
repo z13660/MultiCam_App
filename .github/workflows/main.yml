@@ -50,7 +50,7 @@ jobs:
       # 去掉了 --onefile
       # 生成结果会在 dist/MultiCam_Monitor_Win7_x86 这样的文件夹里
       run: |
-        pyinstaller --noconsole --clean --name "MultiCam_Monitor_${{ matrix.suffix }}" main.py
+        pyinstaller --noconsole --clean --name "MultiCam_Monitor_${{ matrix.suffix }}" MultiCam_App.py
 
     - name: Zip the Output Folder
       # 使用 PowerShell 将 dist 下的文件夹压缩为 zip，方便下载
