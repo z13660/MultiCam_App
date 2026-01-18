@@ -1,0 +1,97 @@
+name: Manual Build & Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: '版本号 (例如 v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      release_title:
+        description: '发布标题'
+        required: false
+        default: 'Win7兼容修复版'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.suffix }}
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        include:
+          # --- Win7 32位 (Python 3.8 + x86) ---
+          - name: Win7_32bit
+            python-version: '3.8'
+            architecture: 'x86'
+            suffix: 'Win7_x86'
+            
+          # --- Win7 64位 (Python 3.8 + x64) ---
+          - name: Win7_64bit
+            python-version: '3.8'
+            architecture: 'x64'
+            suffix: 'Win7_x64'
+            
+          # --- Win10/11 64位 (Python 3.11 + x64) ---
+          - name: Win10_11_64bit
+            python-version: '3.11'
+            architecture: 'x64'
+            suffix: 'Win10_x64'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }} (${{ matrix.architecture }})
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+        architecture: ${{ matrix.architecture }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyinstaller
+        # [关键修改] 移除 pygrabber, 添加 comtypes
+        pip install opencv-python pillow comtypes
+
+    - name: Build with PyInstaller (Folder Mode)
+      # 请确保你的 python 源码文件名是 main.py
+      run: |
+        pyinstaller --noconsole --clean --name "MultiCam_Monitor_${{ matrix.suffix }}" MultiCam_App_comtypes.py
+
+    - name: Zip the Output Folder
+      run: |
+        Compress-Archive -Path "dist/MultiCam_Monitor_${{ matrix.suffix }}" -DestinationPath "MultiCam_${{ matrix.suffix }}.zip"
+
+    - name: Upload Artifact to Temp Storage
+      uses: actions/upload-artifact@v4
+      with:
+        name: Package-${{ matrix.suffix }}
+        path: "MultiCam_${{ matrix.suffix }}.zip"
+        retention-days: 1
+
+  create_release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: Package-*
+        merge-multiple: true
+        path: ./assets
+
+    - name: Create Draft Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ inputs.tag_name }}
+        name: ${{ inputs.release_title }}
+        draft: true
+        prerelease: false
+        files: ./assets/*.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
