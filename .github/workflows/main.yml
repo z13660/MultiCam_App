@@ -1,0 +1,62 @@
+name: Build Camera App
+
+# 触发条件：推送到 main 分支，或者手动在网页点击触发
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        include:
+          # --- Windows 7 32位 (Python 3.8 + x86) ---
+          - name: Win7_32bit
+            python-version: '3.8'  # Py3.8 是最后一个支持 Win7 的版本
+            architecture: 'x86'    # 强制使用 32位 环境
+            suffix: 'Win7_x86'
+            
+          # --- Windows 7 64位 (Python 3.8 + x64) ---
+          - name: Win7_64bit
+            python-version: '3.8'
+            architecture: 'x64'
+            suffix: 'Win7_x64'
+            
+          # --- Windows 10/11 64位 (Python 3.11 + x64) ---
+          - name: Win10_11_64bit
+            python-version: '3.11' # 使用较新版本提升性能
+            architecture: 'x64'
+            suffix: 'Win10_x64'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }} (${{ matrix.architecture }})
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python_version }}
+        architecture: ${{ matrix.architecture }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # 安装 PyInstaller 和项目依赖
+        pip install pyinstaller
+        pip install opencv-python pillow pygrabber
+
+    - name: Build with PyInstaller
+      # --onefile: 打包成单文件
+      # --noconsole: 运行时不显示黑框 CMD
+      # --clean: 清理缓存
+      run: |
+        pyinstaller --noconsole --clean --name "MultiCam_Monitor_${{ matrix.suffix }}" MultiCam_App.py
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: MultiCam_App_${{ matrix.suffix }}
+        path: dist/*.exe
